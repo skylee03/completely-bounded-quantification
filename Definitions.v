@@ -39,22 +39,7 @@ Inductive type : typ -> Prop :=
 
 Notation env := (list (atom * typ)).
 
-Inductive topless : env -> typ -> Prop :=
-  | topless_var : forall E X,
-      topless E (typ_fvar X)
-  | topless_arrow : forall E T1 T2,
-      topless E T1 ->
-      topless E T2 ->
-      topless E (typ_arrow T1 T2)
-  | topless_all : forall L E T1 T2,
-      topless E T1 ->
-      (forall X, X `notin` L -> topless E (open_tt T2 X)) ->
-      topless E (typ_all T1 T2)
-.
-
 Inductive wf_typ : env -> typ -> Prop :=
-  | wf_typ_top : forall E,
-      wf_typ E typ_top
   | wf_typ_var : forall U E X,
       binds X U E ->
       wf_typ E (typ_fvar X)
@@ -64,7 +49,6 @@ Inductive wf_typ : env -> typ -> Prop :=
       wf_typ E (typ_arrow T1 T2)
   | wf_typ_all : forall L E T1 T2,
       wf_typ E T1 ->
-      topless E T1 ->
       (forall X, X `notin` L -> wf_typ (X ~ T1 ++ E) (open_tt T2 X)) ->
       wf_typ E (typ_all T1 T2)
 .
@@ -79,16 +63,28 @@ Inductive wf_env : env -> Prop :=
       wf_env (X ~ T ++ E)
 .
 
+Inductive wf_typ' : env -> typ -> Prop :=
+  | wf_typ'_top : forall E,
+      wf_typ' E typ_top
+  | wf_typ'_var : forall U E X,
+      binds X U E ->
+      wf_typ' E (typ_fvar X)
+  | wf_typ'_arrow : forall E T1 T2,
+      wf_typ' E T1 ->
+      wf_typ' E T2 ->
+      wf_typ' E (typ_arrow T1 T2)
+  | wf_typ'_all : forall L E T1 T2,
+      wf_typ E T1 ->
+      (forall X, X `notin` L -> wf_typ' (X ~ T1 ++ E) (open_tt T2 X)) ->
+      wf_typ' E (typ_all T1 T2)
+.
+
 Inductive sub : env -> typ -> typ -> Prop :=
   (* NTop *)
   | sub_top : forall E S,
-      wf_env E ->
-      wf_typ E S ->
       sub E S typ_top
   (* NRefl *)
   | sub_refl : forall E X,
-      wf_env E ->
-      wf_typ E (typ_fvar X) ->
       sub E (typ_fvar X) (typ_fvar X)
   (* NVar *)
   | sub_var : forall U E T X,
@@ -107,5 +103,5 @@ Inductive sub : env -> typ -> typ -> Prop :=
       sub E (typ_all S1 S2) (typ_all T1 T2)
 .
 
-#[export] Hint Constructors type topless wf_typ wf_env : core.
+#[export] Hint Constructors type wf_typ wf_typ' wf_env : core.
 #[export] Hint Resolve sub_top sub_refl sub_var sub_arrow sub_all : core.
