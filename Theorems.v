@@ -40,7 +40,7 @@ Theorem sub_reflexivity_aux : forall E T,
 Proof.
   intros.
   induction H0; eauto.
-  pick fresh Y excluding (L `union` dom E) and apply sub_all; auto.
+  pick fresh Y and apply sub_all; auto.
 Qed.
 
 Theorem sub_reflexivity : forall E T,
@@ -50,7 +50,7 @@ Theorem sub_reflexivity : forall E T,
 Proof.
   intros.
   induction H0; eauto.
-  pick fresh Y excluding (L `union` dom E) and apply sub_all; auto.
+  pick fresh Y and apply sub_all; auto.
   apply sub_reflexivity_aux; auto.
 Qed.
 
@@ -65,7 +65,7 @@ Proof.
   remember (G ++ E) as F'.
   generalize dependent G.
   induction H; intros; subst; eauto.
-  pick fresh Y excluding (L `union` dom E `union` dom F `union` dom G) and apply wf_typ_all; auto.
+  pick fresh Y and apply wf_typ_all; auto.
   rewrite_env ((Y ~ T1 ++ G) ++ F ++ E).
   apply H1; auto.
   simpl_env.
@@ -81,7 +81,7 @@ Proof.
   remember (G ++ E) as F'.
   generalize dependent G.
   induction H; intros; subst; eauto.
-  pick fresh Y excluding (L `union` dom E `union` dom F `union` dom G) and apply wf_typ'_all; auto.
+  pick fresh Y and apply wf_typ'_all; auto.
   - apply wf_typ_weakening; auto.
   - rewrite_env ((Y ~ T1 ++ G) ++ F ++ E).
     apply H1; auto.
@@ -125,24 +125,6 @@ Proof.
   apply type_all with (L := L); auto.
   apply type_from_wf_typ with (E := E); auto.
 Qed.
-
-Fixpoint fv_tt (T : typ) {struct T} : atoms :=
-  match T with
-  | typ_top => {}
-  | typ_bvar J => {}
-  | typ_fvar X => {{ X }}
-  | typ_arrow T1 T2 => (fv_tt T1) `union` (fv_tt T2)
-  | typ_all T1 T2 => (fv_tt T1) `union` (fv_tt T2)
-  end.
-
-Fixpoint subst_tt (Z : atom) (U : typ) (T : typ) {struct T} : typ :=
-  match T with
-  | typ_top => typ_top
-  | typ_bvar J => typ_bvar J
-  | typ_fvar X => if X == Z then U else T
-  | typ_arrow T1 T2 => typ_arrow (subst_tt Z U T1) (subst_tt Z U T2)
-  | typ_all T1 T2 => typ_all (subst_tt Z U T1) (subst_tt Z U T2)
-  end.
 
 Lemma subst_tt_intro_rec : forall X T2 U k,
   X `notin` fv_tt T2 ->
@@ -219,7 +201,7 @@ Proof with simpl_env; eauto using type_from_wf_typ'.
     + rewrite_env (nil ++ map (subst_tt Z P) F ++ E).
       apply wf_typ_weakening; auto.
     + analyze_binds H...
-  - pick fresh Y excluding (L `union` singleton Z `union` dom E `union` dom F) and apply wf_typ_all...
+  - pick fresh Y and apply wf_typ_all...
     rewrite subst_tt_open_tt_var...
     rewrite_env (map (subst_tt Z P) (Y ~ T1 ++ F) ++ E).
     apply H0...
@@ -240,7 +222,7 @@ Proof with simpl_env; eauto using type_from_wf_typ'.
     + rewrite_env (nil ++ map (subst_tt Z P) F ++ E).
       apply wf_typ'_weakening; auto.
     + analyze_binds H...
-  - pick fresh Y excluding (L `union` singleton Z `union` dom E `union` dom F) and apply wf_typ'_all...
+  - pick fresh Y and apply wf_typ'_all...
     + eapply wf_typ_subst_tt; eauto.
     + rewrite subst_tt_open_tt_var...
       rewrite_env (map (subst_tt Z P) (Y ~ T1 ++ F) ++ E).
@@ -255,7 +237,7 @@ Lemma wf_typ'_open : forall E U T1 T2,
 Proof.
   intros.
   inversion H0; subst.
-  pick fresh Y for (L `union` fv_tt T2).
+  pick fresh Y.
   rewrite (subst_tt_intro Y); auto.
   rewrite_env (map (subst_tt Y U) nil ++ E).
   eapply wf_typ'_subst_tt; eauto.
@@ -263,12 +245,197 @@ Proof.
   apply uniq_from_wf_env; auto.
 Qed.
 
+Lemma sub_weakening : forall E F G S T,
+  wf_env (G ++ E) ->
+  wf_typ' (G ++ E) S -> wf_typ' (G ++ E) T ->
+  sub (G ++ E) S T ->
+  wf_env (G ++ F ++ E) ->
+  sub (G ++ F ++ E) S T.
+Proof.
+  intros E F G S T HwfGE HwfGES HwfGET SsubT HwfGFE.
+  remember (G ++ E) as H.
+  generalize dependent G.
+  induction SsubT; intros G Heq HwfGFE; subst; auto.
+  - apply sub_var with (U := U); auto.
+    apply IHSsubT; auto.
+    apply wf_typ'_from_wf_typ.
+    apply wf_typ_from_binds_typ with (X := X); auto.
+  - apply sub_arrow; auto.
+    + apply IHSsubT1; auto.
+      * inversion HwfGET; auto.
+      * inversion HwfGES; auto.
+    + apply IHSsubT2; auto.
+      * inversion HwfGES; auto.
+      * inversion HwfGET; auto.
+  - pick fresh Y and apply sub_all.
+    + apply IHSsubT; auto.
+      * inversion HwfGET; auto.
+      * inversion HwfGES; auto.
+    + rewrite_env ((Y ~ T1 ++ G) ++ F ++ E).
+      apply H0; auto.
+      * apply wf_env_sub; auto.
+        inversion HwfGET; auto.
+      * apply wf_typ'_open with (T1 := S1); auto.
+        -- apply wf_env_sub; auto.
+           inversion HwfGET; auto.
+        -- rewrite_env (nil ++ Y ~ T1 ++ (G ++ E)).
+           apply wf_typ'_weakening; simpl_env; auto.
+           apply uniq_from_wf_env.
+           apply wf_env_sub; auto.
+           inversion HwfGET; auto.
+        -- apply wf_typ_var with (U := T1); auto.
+      * apply wf_typ'_open with (T1 := T1); auto.
+        -- apply wf_env_sub; auto.
+           inversion HwfGET; auto.
+        -- rewrite_env (nil ++ Y ~ T1 ++ (G ++ E)).
+           apply wf_typ'_weakening; simpl_env; auto.
+           apply uniq_from_wf_env.
+           apply wf_env_sub; auto.
+           inversion HwfGET; auto.
+        -- apply wf_typ_var with (U := T1); auto.
+      * simpl_env.
+        apply wf_env_sub; auto.
+        apply wf_typ_weakening; auto.
+        -- inversion HwfGET; auto.
+        -- apply uniq_from_wf_env; auto.
+Qed.
+
+Lemma wf_env_tailing : forall F E,
+  wf_env (F ++ E) ->
+  wf_env E.
+Proof.
+  intros.
+  induction F; auto.
+  apply IHF.
+  inversion H; auto.
+Qed.
+
+Lemma wf_typ_from_bind : forall F X U E,
+  wf_env (F ++ X ~ U ++ E) ->
+  wf_typ E U.
+Proof.
+  intros.
+  induction F; auto; simpl_env in *.
+  - inversion H; auto.
+  - apply IHF.
+    inversion H; auto.
+Qed.    
+
 Lemma sub_narrowing_aux : forall Q F E Z P S T,
-  (forall E S T, wf_env E -> wf_typ' E Q -> wf_typ' E S -> sub E S Q -> wf_typ' E T -> sub E Q T -> sub E S T) ->
+  wf_env (F ++ Z ~ Q ++ E) -> wf_env (F ++ Z ~ P ++ E) ->
+  wf_typ' (F ++ Z ~ Q ++ E) S -> wf_typ' (F ++ Z ~ Q ++ E) T ->
+  wf_typ' (F ++ Z ~ P ++ E) S -> wf_typ' (F ++ Z ~ P ++ E) T ->
+  (forall E S T, wf_env E -> wf_typ' E Q -> wf_typ' E S -> wf_typ' E T -> sub E S Q -> sub E Q T -> sub E S T) ->
   sub (F ++ Z ~ Q ++ E) S T ->
   sub E P Q ->
   sub (F ++ Z ~ P ++ E) S T.
-Admitted.
+Proof.
+  intros Q F E Z P S T HwfEq HwfEp HwfEqS HwfEqT HwfEpS HwfEpT Htrans SsubT PsubQ.
+  remember (F ++ Z ~ Q ++ E) as G.
+  generalize dependent F.
+  induction SsubT; auto; intros F Heq HwfEp HwfEpS HwfEpT; subst.
+  (* NVar *)
+  - destruct (X == Z); subst.
+    + apply sub_var with (U := P); auto.
+      apply Htrans; auto.
+      (* wf_typ' E Q *)
+      * rewrite_env (nil ++ (F ++ Z ~ P) ++ E).
+        apply wf_typ'_weakening; simpl_env; auto.
+        -- apply wf_typ'_from_wf_typ.
+           apply wf_typ_from_bind with (F := F) (X := Z); auto.
+        -- apply uniq_from_wf_env; auto.
+      (* wf_typ' E S *)
+      * rewrite_env (nil ++ (F ++ Z ~ P) ++ E).
+        apply wf_typ'_weakening; simpl_env; auto.
+        -- apply wf_typ'_from_wf_typ.
+           apply wf_typ_from_bind with (F := F) (X := Z); auto.
+        -- apply uniq_from_wf_env; auto.
+      (* sub E S Q *)
+      * rewrite_env (nil ++ (F ++ Z ~ P) ++ E).
+        apply sub_weakening; simpl_env; auto.
+        -- apply wf_env_tailing with (F := F ++ Z ~ P).
+           simpl_env; auto.
+        -- apply wf_typ'_from_wf_typ.
+           apply wf_typ_from_bind with (F := F) (X := Z); auto.
+        -- apply wf_typ'_from_wf_typ.
+           apply wf_typ_from_bind with (F := F) (X := Z); auto.
+      (* sub E Q T *)
+      * analyze_binds_uniq H.
+        -- apply uniq_from_wf_env; auto.
+        -- apply IHSsubT; auto.
+           ++ apply wf_typ'_from_wf_typ.
+              apply wf_typ_from_binds_typ with (X := Z); auto.
+           ++ rewrite_env (nil ++ (F ++ Z ~ P) ++ E).
+              apply wf_typ'_weakening; simpl_env.
+              ** apply wf_typ'_from_wf_typ.
+                 apply wf_typ_from_bind with (F := F) (X := Z); auto.
+              ** apply uniq_from_wf_env; auto.
+    + apply sub_var with (U := U); auto.
+      analyze_binds H.
+      apply IHSsubT; auto.
+      * apply wf_typ'_from_wf_typ.
+        apply wf_typ_from_binds_typ with (X := X); auto.
+      * apply wf_typ'_from_wf_typ.
+        apply wf_typ_from_binds_typ with (X := X); auto.
+        analyze_binds H.
+  (* NArrow *)
+  - apply sub_arrow.
+    + apply IHSsubT1; auto.
+      * inversion HwfEqT; auto.
+      * inversion HwfEqS; auto.
+      * inversion HwfEpT; auto.
+      * inversion HwfEpS; auto.
+    + apply IHSsubT2; auto.
+      * inversion HwfEqS; auto.
+      * inversion HwfEqT; auto.
+      * inversion HwfEpS; auto.
+      * inversion HwfEpT; auto.
+  (* NAll *)
+  - pick fresh Y and apply sub_all; auto.
+    + apply IHSsubT; auto.
+      * inversion HwfEqT; auto.
+      * inversion HwfEqS; auto.
+      * inversion HwfEpT; auto.
+      * inversion HwfEpS; auto.
+    + rewrite_env ((Y ~ T1 ++ F) ++ Z ~ P ++ E).
+      apply H0; simpl_env; auto.
+      * apply wf_env_sub; auto.
+        inversion HwfEqT; auto.
+      * apply wf_typ'_open with (T1 := S1); eauto.
+        -- apply wf_env_sub; auto.
+           inversion HwfEqT; auto.
+        -- rewrite_env (nil ++ Y ~ T1 ++ F ++ Z ~ Q ++ E).
+           apply wf_typ'_weakening; simpl_env; auto.
+           apply uniq_from_wf_env.
+           apply wf_env_sub; auto.
+           inversion HwfEqT; auto.
+      * apply wf_typ'_open with (T1 := T1); eauto.
+        -- apply wf_env_sub; auto.
+           inversion HwfEqT; auto.
+        -- rewrite_env (nil ++ Y ~ T1 ++ F ++ Z ~ Q ++ E).
+           apply wf_typ'_weakening; simpl_env; auto.
+           apply uniq_from_wf_env.
+           apply wf_env_sub; auto.
+           inversion HwfEqT; auto.
+      * apply wf_env_sub; auto.
+        inversion HwfEpT; auto.
+      * apply wf_typ'_open with (T1 := S1); eauto.
+        -- apply wf_env_sub; auto.
+           inversion HwfEpT; auto.
+        -- rewrite_env (nil ++ Y ~ T1 ++ F ++ Z ~ P ++ E).
+           apply wf_typ'_weakening; simpl_env; auto.
+           apply uniq_from_wf_env.
+           apply wf_env_sub; auto.
+           inversion HwfEpT; auto.
+      * apply wf_typ'_open with (T1 := T1); eauto.
+        -- apply wf_env_sub; auto.
+           inversion HwfEpT; auto.
+        -- rewrite_env (nil ++ Y ~ T1 ++ F ++ Z ~ P ++ E).
+           apply wf_typ'_weakening; simpl_env; auto.
+           apply uniq_from_wf_env.
+           apply wf_env_sub; auto.
+           inversion HwfEpT; auto.
+Qed.
 
 Theorem sub_transitivity :
   forall E, wf_env E ->
@@ -322,7 +489,7 @@ Proof.
       apply wf_typ'_from_wf_typ.
       apply wf_typ_from_binds_typ with (X := X); auto.
     + inversion Heq; inversion QsubT; subst; auto.
-      pick fresh Y excluding (L `union` dom E `union` fv_tt T4 `union` L0 `union` L1) and apply sub_all.
+      pick fresh Y and apply sub_all.
       * apply IHW with (Q' := T1); auto.
         -- inversion HwfQ; auto.
         -- inversion HwfT; auto.
@@ -349,7 +516,43 @@ Proof.
               inversion HwfT; auto.
            ++ apply wf_typ_var with (U := T4); auto.
         -- rewrite_env (nil ++ Y ~ T4 ++ E).
-           apply sub_narrowing_aux with (Q := T1); eauto.
+           apply sub_narrowing_aux with (Q := T1); simpl_env; eauto.
+           ++ apply wf_env_sub; auto.
+              inversion HwfQ; auto.
+           ++ apply wf_env_sub; auto.
+              inversion HwfT; auto.
+           ++ apply wf_typ'_open with (T1 := S1); eauto.
+              ** apply wf_env_sub; auto.
+                 inversion HwfQ; auto.
+              ** rewrite_env (nil ++ Y ~ T1 ++ E).
+                 apply wf_typ'_weakening; simpl_env; auto.
+                 apply uniq_from_wf_env; auto.
+                 apply wf_env_sub; auto.
+                 inversion HwfQ; auto.
+           ++ apply wf_typ'_open with (T1 := T1); eauto.
+              ** apply wf_env_sub; auto.
+                 inversion HwfQ; auto.
+              ** rewrite_env (nil ++ Y ~ T1 ++ E).
+                 apply wf_typ'_weakening; simpl_env; auto.
+                 apply uniq_from_wf_env; auto.
+                 apply wf_env_sub; auto.
+                 inversion HwfQ; auto.
+           ++ apply wf_typ'_open with (T1 := S1); eauto.
+              ** apply wf_env_sub; auto.
+                 inversion HwfT; auto.
+              ** rewrite_env (nil ++ Y ~ T4 ++ E).
+                 apply wf_typ'_weakening; simpl_env; auto.
+                 apply uniq_from_wf_env; auto.
+                 apply wf_env_sub; auto.
+                 inversion HwfT; auto.
+           ++ apply wf_typ'_open with (T1 := T1); eauto.
+              ** apply wf_env_sub; auto.
+                 inversion HwfT; auto.
+              ** rewrite_env (nil ++ Y ~ T4 ++ E).
+                 apply wf_typ'_weakening; simpl_env; auto.
+                 apply uniq_from_wf_env; auto.
+                 apply wf_env_sub; auto.
+                 inversion HwfT; auto.
         -- apply wf_typ'_open with (T1 := T4) (U := Y); auto.
            ++ inversion HwfT; auto.
            ++ rewrite_env (nil ++ Y ~ T4 ++ E).
