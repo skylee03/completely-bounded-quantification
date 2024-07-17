@@ -105,28 +105,3 @@ Inductive sub : env -> typ -> typ -> Prop :=
 
 #[export] Hint Constructors type wf_typ wf_typ' wf_env : core.
 #[export] Hint Resolve sub_top sub_refl sub_var sub_arrow sub_all : core.
-
-Fixpoint fv_tt (T : typ) {struct T} : atoms :=
-  match T with
-  | typ_top => {}
-  | typ_bvar J => {}
-  | typ_fvar X => {{ X }}
-  | typ_arrow T1 T2 => (fv_tt T1) `union` (fv_tt T2)
-  | typ_all T1 T2 => (fv_tt T1) `union` (fv_tt T2)
-  end.
-
-Fixpoint subst_tt (Z : atom) (U : typ) (T : typ) {struct T} : typ :=
-  match T with
-  | typ_top => typ_top
-  | typ_bvar J => typ_bvar J
-  | typ_fvar X => if X == Z then U else T
-  | typ_arrow T1 T2 => typ_arrow (subst_tt Z U T1) (subst_tt Z U T2)
-  | typ_all T1 T2 => typ_all (subst_tt Z U T1) (subst_tt Z U T2)
-  end.
-
-Ltac gather_atoms ::=
-  let A := gather_atoms_with (fun x : atoms => x) in
-  let B := gather_atoms_with (fun x : atom => singleton x) in
-  let C := gather_atoms_with (fun x : typ => fv_tt x) in
-  let D := gather_atoms_with (fun x : env => dom x) in
-  constr : (A `union` B `union` C `union` D).

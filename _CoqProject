@@ -1,3 +1,5 @@
 -R . Fsub
 Definitions.v
+Infrastructure.v
+Lemmas.v
 Theorems.v
