@@ -198,6 +198,20 @@ Proof with eauto.
   eapply wf_typ'_subst_tt...
 Qed.
 
+Lemma wf_typ_open : forall E U T1 T2,
+  wf_env E ->
+  wf_typ E (typ_all T1 T2) ->
+  wf_typ E U ->
+  wf_typ E (open_tt T2 U).
+Proof with eauto.
+  intros.
+  inversion H0; subst.
+  pick fresh Y.
+  rewrite (subst_tt_intro Y)...
+  rewrite_env (map (subst_tt Y U) nil ++ E).
+  eapply wf_typ_subst_tt...
+Qed.
+
 Hint Extern 3 (wf_typ' ?E ?T) =>
   match goal with
   | H: wf_typ' E (typ_arrow T _) |- _ => inversion H; auto
